@@ -15,8 +15,8 @@ currentDateTime="$(date +"%a %B %d / %r")"
 
 myPrettyOS="$(source /etc/os-release; echo $PRETTY_NAME)"
 
-# Use the pretty format to cleanly grab uptime number, and text (days, months hours etc.)
-uptime="$(uptime -p | awk '{print $2 " " $3}')"
+# Used the -p flag so it catches, 1 day, 5:10 minutes
+uptime="$(uptime -p | sed 's/^up[[:space:]]//')"
 
 # Grab CPU using lshw filter with cpu. 
 # grep finds product: and stops at first result (incase multicpu)
