@@ -1,10 +1,14 @@
 #!/bin/bash
 
-
+# Script: System Report (sysreport)
+# Author: Saurav Pokhrel (1863)
 # Script to provide human readable system information
-# SED Searches use [[:space:]] in lieu of space
+# Some nesting of functions reduced for readability. 
+
 # Dependencies: sudo, lshw, lspci, systemd (resolvctl, loginctl)
-# Potential Todo: Create functions for repeated seds
+
+# Potential Todo: 
+#           - Create functions for repeated seds/trs etc.
 
 
 
@@ -39,10 +43,11 @@ videoCard="$(lspci | grep -i vga | sed 's/.*VGA compatible controller:[[:space:]
 # lsblk with no headings (-n), -o MODEL, SIZE (columns), exclude (-e) 7 which is loop's major number
 # -d to exclude partitions / slaves
 # $'\n' at the start/end to newline to have a clean visual of the disks, human readable
-myDisks=$'\n'"$(lsblk -d -e 7 -n -o MODEL,SIZE| sed 's/^/\t/')"$'\n'
+myDisks=$'\n'"$(lsblk -d -e 7 -n -o MODEL,SIZE | sed 's/^/\t/')"$'\n'
 
 # Default Route with ip route. $5 is the dev. 
 # Assuming IPV4 not IPV6
+# 
 interface="$(ip -4 route show default | awk '{print $5}')"
 defaultGateway="$(ip -4 route show default | awk '{print $3}')"
 wanIP="$(ip a show dev $interface | grep -w "inet" | awk '{print $2}')"
