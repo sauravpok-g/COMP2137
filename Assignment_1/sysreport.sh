@@ -4,6 +4,7 @@
 # Script to provide human readable system information
 # SED Searches use [[:space:]] in lieu of space
 # Dependencies: sudo, lshw, lspci, systemd (resolvctl, loginctl)
+# Potential Todo: Create functions for repeated seds
 
 
 
@@ -83,7 +84,8 @@ loadInfo="$(uptime | sed 's/.*load average:[[:space:]]//')"
 listeningPorts="$(ss -Htuln | awk '{print $5}' | sed 's/.*://' | sort -u | tr '\n' "," | sed 's/,$/\n/; s/,/, /g')"
 
 # UFW status, requires sudo, and strip the leading status
-ufwStatus="$(sudo ufw status | sed 's/.*:[[:space:]]//')"
+# UFW Status on Arch shows additional output, grab just the status
+ufwStatus="$(sudo ufw status | grep -w "Status:" | sed 's/.*:[[:space:]]//')"
 
 # Varaibles END
 
