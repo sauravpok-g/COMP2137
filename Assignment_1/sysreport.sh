@@ -2,7 +2,11 @@
 
 
 # Script to provide human readable system information
-# Dependencies: sudo, resolvectl, lshw, lspci
+# SED Searches use [[:space:]] in lieu of space
+# Dependencies: sudo, lshw, lspci, systemd (resolvctl, loginctl)
+
+
+
 # Variables START
 
 myHostName="$(hostname)"
@@ -29,7 +33,7 @@ cpuName="$(lshw -c cpu 2>/dev/null| grep -m1 "product:" | sed 's/[[:space:]]*pro
 ramInstalled="$(sudo lshw -c memory 2>/dev/null | grep -A5 -i "system memory" | grep -m1 "size:" | sed 's/[[:space:]]*size:[[:space:]]*//')"
 
 # Same situation here. Grep the VGA line and strip the leading text out.
-videoCard="$(lspci | grep -i vga | sed 's/.*VGA compatible controller: //')"
+videoCard="$(lspci | grep -i vga | sed 's/.*VGA compatible controller:[[:space:]]//')"
 
 # lsblk with no headings (-n), -o MODEL, SIZE (columns), exclude (-e) 7 which is loop's major number
 # -d to exclude partitions / slaves
@@ -44,6 +48,43 @@ wanIP="$(ip a show dev $interface | grep -w "inet" | awk '{print $2}')"
 
 
 dnsIP="$(resolvectl status | grep -w "Current DNS Server:" | awk '{print $4}')"
+
+
+
+# List users with no legends, print $2 but thats newline, replace newlines with , and replace the last comma with newline.
+
+# Test for login CTL, suppress stdout and redirect stderr to stdout
+if which loginctl > /dev/null  2>&1
+    then
+        # Loginctl if its available. Who wasnt working, unsure if w will catch users, but systemd should be more consistent
+        loggedInUsers="$(loginctl list-users --no-legend | awk '{print $2}' | tr '\n' ',' | sed 's/,$/\n/')"
+    else
+        # W version of the same thing. W should be more unversal than loginctl, but loginctl is preferred.
+        # -s short makes users first arg, same replace as the login ctl one above. 
+        loggedInUsers="$(w -h -s | awk '{print $1}' | tr '\n' ',' | sed 's/,$/\n/')"
+fi
+
+
+# ps -e for all, then count the lines. Dont need to use -o pid.
+procCount="$(ps -e --no-headers | wc -l)"
+
+# uptime has load averages
+# replace everything up to and including "load average: "
+
+loadInfo="$(uptime | sed 's/.*load average:[[:space:]]//')"
+
+# ss no headers, tcp, udp, listening, numbers (no resolve to things like dns)
+# $5 = ip:port combo
+# remove everything before the port
+# sort and show only uniques. Each port is in new lines, need to strip again but this format requires spaces
+# TR alone doesnt work here as its 1:1, use sed to turn , into ,. Needs switch g for all matches.
+# Note [[:space:]] does not work in replacements, only in search. Thre is a space in the replacement global
+
+listeningPorts="$(ss -Htuln | awk '{print $5}' | sed 's/.*://' | sort -u | tr '\n' "," | sed 's/,$/\n/; s/,/, /g')"
+
+# UFW status, requires sudo, and strip the leading status
+ufwStatus="$(sudo ufw status | sed 's/.*:[[:space:]]//')"
+
 # Varaibles END
 
 
@@ -67,11 +108,11 @@ DNS Server: $dnsIP
  
 System Status
 -------------
-Users Logged In: USER,USER,USER...
+Users Logged In: $loggedInUsers
 Disk Space: FREE SPACE FOR LOCAL FILESYSTEMS IN FORMAT: /MOUNTPOINT N
-Process Count: N
-Load Averages: N, N, N
-Listening Network Ports: N, N, N, ...
-UFW Status: UFWSTATUS
+Process Count: $procCount
+Load Averages: $loadInfo
+Listening Network Ports: $listeningPorts
+UFW Status: $ufwStatus
 
 EOF
