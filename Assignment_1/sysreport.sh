@@ -10,8 +10,6 @@
 # Potential Todo: 
 #           - Create functions for repeated seds/trs etc.
 
-
-
 # Variables START
 
 myHostName="$(hostname)"
@@ -32,12 +30,13 @@ uptime="$(uptime -p | sed 's/^up[[:space:]]//')"
 # sed replaces "any amount of white space" before and after "product:"
 cpuName="$(lshw -c cpu 2>/dev/null| grep -m1 "product:" | sed 's/[[:space:]]*product:[[:space:]]*//')"
 
-# Using 2 greps to first grab the correct section as -c memory grabs cache/firmware. 
-# This method works on both VM and Arch where info on banks is available as well.
-# Issues with correct ram size on Arch when using non sudo. Sudo version needs additional filtering to remove other memory sections.
+# Using 2 greps to first grab the correct section (and trailing lines with -A5) as -c memory grabs cache/firmware. 
+# This method works on both Ubuntu and Arch where info on banks is available as well.
+# Issues with correct ram size on Arch when using non sudo. Use -m1 (first match) to exclude others that now show with SUDO.
 ramInstalled="$(sudo lshw -c memory 2>/dev/null | grep -A5 -i "system memory" | grep -m1 "size:" | sed 's/[[:space:]]*size:[[:space:]]*//')"
 
-# Same situation here. Grep the VGA line and strip the leading text out.
+
+# Grep the VGA line and strip the leading text out.
 videoCard="$(lspci | grep -i vga | sed 's/.*VGA compatible controller:[[:space:]]//')"
 
 # lsblk with no headings (-n), -o MODEL, SIZE (columns), exclude (-e) 7 which is loop's major number
@@ -58,8 +57,8 @@ dnsIP="$(resolvectl status | grep -w "Current DNS Server:" | awk '{print $4}')"
 
 
 # List users with no legends, print $2 but thats newline, replace newlines with , and replace the last comma with newline.
-
 # Test for login CTL, suppress stdout and redirect stderr to stdout
+# Using this if statement since loginctl is not available on all systems (MacOS mainly)
 if which loginctl > /dev/null  2>&1
     then
         # Loginctl if its available. Who wasnt working, unsure if w will catch users, but systemd should be more consistent
@@ -92,6 +91,13 @@ listeningPorts="$(ss -Htuln | awk '{print $5}' | sed 's/.*://' | sort -u | tr '\
 # UFW Status on Arch shows additional output, grab just the status
 ufwStatus="$(sudo ufw status | grep -w "Status:" | sed 's/.*:[[:space:]]//')"
 
+# Listing out the free space
+# DF does not have no headers so use tail -n +2 (2nd line inclusive and onwards)
+# ORDER IN --ouput matters. order > stdout order
+# Sed at the end to format it in a more legible way.
+
+myFreeSpace=$'\n'"$(df -h --output=target,avail | tail -n +2 | sed 's/^/\t/')"$'\n'
+
 # Varaibles END
 
 
@@ -116,7 +122,7 @@ DNS Server: $dnsIP
 System Status
 -------------
 Users Logged In: $loggedInUsers
-Disk Space: FREE SPACE FOR LOCAL FILESYSTEMS IN FORMAT: /MOUNTPOINT N
+Disk Space: $myFreeSpace
 Process Count: $procCount
 Load Averages: $loadInfo
 Listening Network Ports: $listeningPorts
