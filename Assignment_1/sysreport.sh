@@ -57,12 +57,13 @@ dnsIP="$(resolvectl status | grep -w "Current DNS Server:" | awk '{print $4}')"
 
 
 # List users with no legends, print $2 but thats newline, replace newlines with , and replace the last comma with newline.
-# Test for login CTL, suppress stdout and redirect stderr to stdout
-# Using this if statement since loginctl is not available on all systems (MacOS mainly)
-if which loginctl > /dev/null  2>&1
+# redirect stdout to /dev/null as command returns path if the command is found
+# command -v checks for command (0 if it exists). Bash built in safer than which. Suppress. 
+if command -v loginctl > /dev/null
     then
         # Loginctl if its available. Who wasnt working, unsure if w will catch users, but systemd should be more consistent
         loggedInUsers="$(loginctl list-users --no-legend | awk '{print $2}' | tr '\n' ',' | sed 's/,$/\n/')"
+        #echo "entered loginctl block"
     else
         # W version of the same thing. W should be more unversal than loginctl, but loginctl is preferred.
         # -s short makes users first arg, same replace as the login ctl one above. 
