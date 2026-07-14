@@ -47,6 +47,9 @@ done
 # Edit the hosts file
 sed -i -e "s,${networkIP},${newIP},g" "/etc/hosts"
 
+# Apply the netplan
+netplan apply
+
 # Check Apache2 Status
 if dpkg-query -W -f='${Status}' apache2 2> /dev/null | grep -q "install ok installed"; then
     apachestatus="Installed"
