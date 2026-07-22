@@ -60,14 +60,14 @@ done
 # Check that it already exists before replacing. 
 # Also check for any stale lines incase there is a stale line and a correct line. 
 # Grep for all lines with hostname in host file | invert grep so it doesnt catch loopback | and invert grep the "correct" IP
-$staleExists="$(grep "\b${host}\b" /etc/hosts | grep -v '^127\.' | grep -vxF "$newIP $host")"
+staleExists="$(grep "\b${host}\b" /etc/hosts | grep -v '^127\.' | grep -vxF "$newIP $host")"
 
 # x for whole line, -F for string no regex. And check that stale is empty. 
 if grep -qxF "$newIP $host" /etc/hosts && [ -z "$stale"]; then
     echo "  /etc/hosts already correct - no changes applied"
 else
-    # Strip bad lines
-    sed -i "/\b${host}\b/{/^127\./!d}" /etc/hosts
+    # Strip bad lines, checks to that theres a space before the hostname and space or EOF after it (no matchings -XXX)
+    sed -i "/[[:space:]]${host}\([[:space:]]\|$\)/{/^127\./!d}" /etc/hosts
     # Add new info to the file
     echo "$newIP $host" >> /etc/hosts
     echo "  updated /etc/hosts: $newIP $host"
