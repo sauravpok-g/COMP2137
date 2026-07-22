@@ -31,7 +31,11 @@ echo "You've hit the test server: $currentHost at $ipAddr"
 # Track if we are in verbose
 verbose=0
 
+# internal log for any errors
+errors=0
+
 # Custom Echo function. Takes n args. If verbose is on will echo, otherwise will not echo anything.
+# TODO: Consider merging all the myFunctions to one with flags instead.
 function myEcho () {
     [ "$verbose" -eq 1 ] && echo "$@"
 }
@@ -41,14 +45,13 @@ function myLog () {
 }
 
 function myError () { 
-
+    # Increment the error counter. Anything not 0 is an error. 
+    errors+=1
 }
 
 # Change Hostname in both /etc/hosts and /etc/hostname
 # Only update if theres a change. 
 # Takes one arg: DesiredName
-
-# TO DO: Merge the running hostname and /etc/hostname since using hostnamectl updates both. 
 function changeHostname () {
     local desiredName="$1"
     local currentName="$(hostname)"
@@ -60,26 +63,37 @@ function changeHostname () {
         
         # Change the host name now
         if hostname "$desiredName"; then
-            myEcho "Running hostname changed: '$currentName' -> '$desiredName'"
-            myLog "Running hostname changed: '$currentName' -> '$desiredName'"
+            myEcho "Running hostname: changed '$currentName' -> '$desiredName'"
+            myLog "Running hostname: changed '$currentName' -> '$desiredName'"
         else
-            myError "could not update running hostname to '$desiredName'"
-            return 1
+            myError "Running hostname: could not update running hostname to '$desiredName'"
         fi
     else
-        myEcho "Hostname is already set to '$desiredName' - no changes made"
+        myEcho "Running hostname: no changes requried for '$desiredName'"
     fi
-    # Update /etc/hosts
+    # Update /etc/hosts - if required. Will also replace -mgmt
+    if grep -qw "$currentName" /etc/hosts && [ "$currentName" != "$desiredName" ]; then
+        # update both "currentName" and "currentName-mgmt"
+        if sed -i -E "s/([[:space:]])${currentName}(-mgmt)?([[:space:]]|\$)/\1${desiredName}\2\3/g" /etc/hosts; then
+            myEcho "/etc/hosts updated: '$currentName' -> '$desiredName' (incl. -mgmt)"
+            myLog "/etc/hosts updated: '$currentName' -> '$desiredName' (incl. -mgmt)"
+        else
+            myError "/etc/hosts could not be updated to '$desiredName'"
+        fi
+    else
+        myEcho "/etc/hosts: no changes required for '$desiredName'"
+    fi
 
     # Update /etc/hostname using hostnamectl instead of search and replace
     if [ "$hostnameFile" != "$desiredName" ]; then
         if hostnamectl hostname "$desiredName" --static; then
-            myEcho "Hostname file changed: '$currentName' -> '$desiredName'"
-            myLog "Hostname file changed: '$currentName' -> '$desiredName'"
+            myEcho "/etc/hostname: file changed: '$hostnameFile' -> '$desiredName'"
+            myLog "/etc/hostname: file changed: '$hostnameFile' -> '$desiredName'"
         else
-            myError "could not update hostname file to: '$desiredName'"
-            return 1
+            myError "/etc/hostname: could not update hostname file to: '$desiredName'"
         fi
+    else
+        myEcho "/etc/hostname: no changes requried for '$desiredName'"
 
     fi
 
@@ -98,3 +112,6 @@ while [ $# -gt 0 ]; do
     esac
     shift
 done
+
+# Return the amount of errors. 
+return $errors
