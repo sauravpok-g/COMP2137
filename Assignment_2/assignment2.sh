@@ -36,7 +36,7 @@ networkIP="$(ip -o -4 addr show | grep "$networkintid" | awk '{print $4}' | cut 
 echo "#### Updating NetPlan ####"
 for f in /etc/netplan/*.yaml; do
     # Grep and check that its actually a new update
-    if grep -q "$networkIPcidr" "$f" && [ "$networkIPcidr" != "$newIPcidr" ]; then
+    if grep -q "$networkIPcidr" "$f" && [ "$networkIPcidr" != "$newIPcidr"]; then
         echo "Replacing $networkIPcidr with $newIPcidr in $f"
         sed -i -e "s,${networkIPcidr},${newIPcidr},g" "$f"
         # Apply the netplan  
@@ -62,7 +62,7 @@ staleExists="$(grep "\b${host}\b" /etc/hosts | grep -v '^127\.' | grep -vxF "$ne
 
 echo "#### Updating /etc/hosts"
 # x for whole line, -F for string no regex. And check that stale is empty. 
-if grep -qxF "$newIP $host" /etc/hosts && [ -z "$staleExists" ]; then
+if grep -qxF "$newIP $host" /etc/hosts && [ -z "$staleExists"]; then
     echo "  /etc/hosts already correct - no changes applied"
 else
     # Strip bad lines, checks to that theres a space before the hostname and space or EOF after it (no matchings -XXX)
@@ -81,13 +81,11 @@ for pkg in $pkgList; do
     if dpkg-query -W -f='${Status}' "$pkg" 2> /dev/null | grep -q "install ok installed"; then
         echo "  $pkg already installed - skipping"
     elif apt-get install -y "$pkg" &>/dev/null; then
-        echo "  $pkg installed"
+        echo "  installed $pkg"
     else
         echo "  ERROR: failed to install $pkg"
     fi
-
-    systemctl enable --now "$pkg" &> /dev/null
-
+    systemctl enable --now "$pkg" &> /dev/null && echo "  Enabled $pkg" || echo "  ERROR: Unable to enable $pkg"
 done
 
 # Users section
