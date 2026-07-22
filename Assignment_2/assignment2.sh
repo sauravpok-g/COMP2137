@@ -74,7 +74,7 @@ else
     sed -i "/[[:space:]]${host}\([[:space:]]\|$\)/{/^127\./!d}" /etc/hosts
     # Add new info to the file
     echo "$newIP $host" >> /etc/hosts
-    echo "  updated /etc/hosts: $newIP $host"
+    echo "  Updated /etc/hosts: $newIP $host"
 fi
 
 
@@ -86,7 +86,7 @@ for pkg in $pkgList; do
     if dpkg-query -W -f='${Status}' "$pkg" 2> /dev/null | grep -q "install ok installed"; then
         echo "  $pkg already installed - skipping"
     elif apt-get install -y "$pkg" &>/dev/null; then
-        echo "  installed $pkg"
+        echo "  Installed $pkg"
     else
         echo "  ERROR: failed to install $pkg"
     fi
