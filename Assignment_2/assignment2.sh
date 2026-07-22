@@ -1,14 +1,8 @@
 #!/bin/bash
 
-
 # Script: System Configuration
 # Author: Saurav Pokhrel (1863)
 # Desc: Script to determine modifications requried, runs on target system to make modifications and reports on changes made
-
-# TO-DO
-#  Potentially find a way to replace the interface's address itself instead of the addresss searching in NETPLAN
-#  Make these into functions for adaptbility into A3, low priority. 
-#  Add checks to IPs in netplan before making any changes
 
 # Variables
 adminUsers="dennis"
