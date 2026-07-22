@@ -46,7 +46,7 @@ done
 if [ "$changed" -eq 1 ]; then
     netplan apply && echo "  Applied netplan" || echo " ERROR: netplan apply failed"
 else
-    echo "  Network already $newIPcider - no changes"
+    echo "  Network already $newIPcidr - no changes"
 fi
 
 
