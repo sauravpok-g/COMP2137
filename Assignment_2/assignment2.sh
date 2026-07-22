@@ -32,17 +32,22 @@ networkIP="$(ip -o -4 addr show | grep "$networkintid" | awk '{print $4}' | cut 
 
 # Find The Yaml Fiiles that have the IP we are replacing
 # It could be in multiple files, assuming we have to update all
-
+changed=0
 echo "#### Updating NetPlan ####"
 for f in /etc/netplan/*.yaml; do
     # Grep and check that its actually a new update
-    if grep -q "$networkIPcidr" "$f" && [ "$networkIPcidr" != "$newIPcidr"]; then
-        echo "Replacing $networkIPcidr with $newIPcidr in $f"
+    if grep -q "$networkIPcidr" "$f" && [ "$networkIPcidr" != "$newIPcidr" ]; then
+        echo "  Replacing $networkIPcidr with $newIPcidr in $f"
         sed -i -e "s,${networkIPcidr},${newIPcidr},g" "$f"
-        # Apply the netplan  
+        changed=1
     fi
-    netplan apply
 done
+
+if [ "$changed" -eq 1 ]; then
+    netplan apply && echo "  Applied netplan" || echo " ERROR: netplan apply failed"
+else
+    echo "  Network already $newIPcider - no changes"
+fi
 
 
 # Edit the hosts file
@@ -62,7 +67,7 @@ staleExists="$(grep "\b${host}\b" /etc/hosts | grep -v '^127\.' | grep -vxF "$ne
 
 echo "#### Updating /etc/hosts"
 # x for whole line, -F for string no regex. And check that stale is empty. 
-if grep -qxF "$newIP $host" /etc/hosts && [ -z "$staleExists"]; then
+if grep -qxF "$newIP $host" /etc/hosts && [ -z "$staleExists" ]; then
     echo "  /etc/hosts already correct - no changes applied"
 else
     # Strip bad lines, checks to that theres a space before the hostname and space or EOF after it (no matchings -XXX)
@@ -100,9 +105,9 @@ function addAuthKeys {
 
     # Check for the file, if not there create it
     if [ -f "$file" ]; then
-        grep -qxF "$key" "$file" || { echo "$key" >> "$file"; echo "  Added a key to $file"; }
+        grep -qxF "$key" "$file" || { echo "$key" >> "$file"; echo "    Added a key to $file"; }
     else
-        echo "  $file doesnt exist, not adding keys"
+        echo "    $file doesnt exist, not adding keys"
     fi
 
     
