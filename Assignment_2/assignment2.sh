@@ -39,12 +39,15 @@ networkIP="$(ip -o -4 addr show | grep "$networkintid" | awk '{print $4}' | cut 
 # Find The Yaml Fiiles that have the IP we are replacing
 # It could be in multiple files, assuming we have to update all
 
+echo "#### Updating NetPlan ####"
 for f in /etc/netplan/*.yaml; do
-    if grep -q "$networkIPcidr" "$f"; then
+    # Grep and check that its actually a new update
+    if grep -q "$networkIPcidr" "$f" && [ "$networkIPcidr" != "$newIPcidr"]; then
+        echo "Replacing $networkIPcidr with $newIPcidr in $f"
         sed -i -e "s,${networkIPcidr},${newIPcidr},g" "$f"
-        # Apply the netplan
-        netplan apply
+        # Apply the netplan  
     fi
+    netplan apply
 done
 
 
@@ -60,10 +63,12 @@ done
 # Check that it already exists before replacing. 
 # Also check for any stale lines incase there is a stale line and a correct line. 
 # Grep for all lines with hostname in host file | invert grep so it doesnt catch loopback | and invert grep the "correct" IP
+# Will catch lines that are commented and will delete them, not a real issue. 
 staleExists="$(grep "\b${host}\b" /etc/hosts | grep -v '^127\.' | grep -vxF "$newIP $host")"
 
+echo "#### Updating /etc/hosts"
 # x for whole line, -F for string no regex. And check that stale is empty. 
-if grep -qxF "$newIP $host" /etc/hosts && [ -z "$stale"]; then
+if grep -qxF "$newIP $host" /etc/hosts && [ -z "$staleExists"]; then
     echo "  /etc/hosts already correct - no changes applied"
 else
     # Strip bad lines, checks to that theres a space before the hostname and space or EOF after it (no matchings -XXX)
@@ -74,15 +79,10 @@ else
 fi
 
 
-
-# sed -i -e "s,${networkIP},${newIP},g" "/etc/hosts"
-
-
-
 # Install Packages, use a loop for easier porting to command line args
 # Pull packages from $pkgList. Check if isntalled, use install in the else to install and get the status of hte install for success.
 # Otherwise its an error. 
-
+echo "#### Package Check for: $pkgList ####"
 for pkg in $pkgList; do
     if dpkg-query -W -f='${Status}' "$pkg" 2> /dev/null | grep -q "install ok installed"; then
         echo "  $pkg already installed - skipping"
@@ -96,31 +96,7 @@ for pkg in $pkgList; do
 
 done
 
-#if dpkg-query -W -f='${Status}' apache2 2> /dev/null | grep -q "install ok installed"; then
-#    apachestatus="Installed"
-#    echo "Apache Already Installed - Skipping..."
-#else
-#    apt-get install -y apache2 &> /dev/null
-
-
-#fi
-# Check Squid. 
-#if dpkg-query -W -f='${Status}' squid 2> /dev/null | grep -q "install ok installed"; then
-#    squidstatus="Installed"
-#    echo "Squid Already Installed - Skipping..."
-#else
-#    echo "Installing Squid"
-#    apt-get install -y squid &> /dev/null
-#   
-
-#fi
-
-# Enable the services regardless. Doesnt break if done if its already enabled.
-#systemctl enable --now squid &> /dev/null
-#systemctl enable --now apache2 &> /dev/null
-
 # Users section
-
 # Functions
 
 # Add key to file 
@@ -145,7 +121,6 @@ function addAuthKeys {
 # Creates RSA and ED keys, checks if they exist first. 
 # Takes user as argument #1. 
 
-
 function createUserKeys {
     local sshdir="/home/$1/.ssh"
     mkdir -p "$sshdir"
@@ -154,17 +129,17 @@ function createUserKeys {
     # Create ed25519
     if [ ! -f "$sshdir/id_ed25519" ]; then
         ssh-keygen -t ed25519 -f "$sshdir/id_ed25519" -N "" -q -C "$1"
-        echo "  Created ed25519 Key Pair"
+        echo "      Created ed25519 Key Pair"
     else
-        echo "  ed25519 keypair already exists - skipping creation"
+        echo "      ed25519 keypair already exists - skipping creation"
     fi
 
     # Create RSA
     if [ ! -f "$sshdir/id_rsa" ]; then
         ssh-keygen -t rsa -b 4096 -f "$sshdir/id_rsa" -N "" -q -C "$1"
-        echo "  Created RSA Key Pair"
+        echo "      Created RSA Key Pair"
     else
-        echo "  RSA keypair already exists - skipping creation"
+        echo "      RSA keypair already exists - skipping creation"
     fi
 
     
@@ -172,7 +147,7 @@ function createUserKeys {
 
     if [ ! -f "$sshdir/authorized_keys" ]; then
         touch "$sshdir/authorized_keys"
-        echo "  Created $sshdir/authorized_keys"
+        echo "      Created $sshdir/authorized_keys"
     fi 
 
     addAuthKeys "$(cat "$sshdir/id_ed25519.pub")" "$sshdir/authorized_keys"
@@ -186,14 +161,15 @@ function createUserKeys {
 
 }
 
+echo "#### Creating Users ####"
 # Create Users from $userList. 
 for u in $userList; do
 
     if id "$u" >/dev/null 2>&1; then
-        echo "User $u already exists - skipping creation"
+        echo "  User $u already exists - skipping creation"
     else
         useradd -m -s /bin/bash "$u"
-        echo "Created user: $u"
+        echo "  Created user: $u"
     fi
 
    
@@ -207,19 +183,5 @@ for u in $userList; do
     fi
 done
 
-
-#cat << EOF
-
-#Apache2: $apachestatus
-#Squid: $squidstatus
-
-#Network Interface: $networkint
-#Network IP CIDR: $networkIPcidr
-#Network IP: $networkIP
-#Netplan File: $netplanfile
-
-#EOF
-
-# Check squid Web proxy status
-
-# Create Users accounts
+# Exit with a success regardless of the outcome. 
+exit 0
