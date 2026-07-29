@@ -24,16 +24,23 @@ verbose=0
 # internal log for any errors
 errors=0
 
-# Custom Echo function. Takes n args. If verbose is on will echo, otherwise will not echo anything.
-# TODO: Consider merging all the myFunctions to one with flags instead.
+# Current Hostname for verbose
+selfName="$(hostname)"
+
+# My Echo function
+# Checks to see if theres verbose and then prints
 function myEcho () {
-    [ "$verbose" -eq 1 ] && echo "$@"
+    [ "$verbose" -eq 1 ] && echo "[$selfName] $@"
 }
 
+# My Log Function
+# Logs to system via logger with predefined args to keep it consistant.
 function myLog () {
     logger -t "$(basename "$0")" -i -p user.warning -- "$@"
 }
 
+# My Error Function
+# Handles errors in a custom way. Any errors are sent to stderr using this function and not echo'd normally. 
 function myError () { 
     # Increment the error counter. Anything not 0 is an error.
     echo "$(basename "$0"): $*" >&2
