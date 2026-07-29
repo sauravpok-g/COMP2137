@@ -9,24 +9,14 @@
 # TO DO:
 # Command line args
 #   -verbose (DONE)
-#   -name desiredName 
-#        this option will confirm the host has the desired name, updating it if necessary in both the /etc/hosts file and the /etc/hostname file
-#        Verbose: Mention any changes made. 
-#        if changes made: send to system log using logger describing the changes. 
-#   -ip desiredIPAddress
-#   -hostEntry desiredName desiredIP
+#   -name desiredName (done)
+#   -ip desiredIPAddress (done)
+#   -hostEntry desiredName desiredIP (done)
 # 
-# Error "Handling", no output unless verbose EXCEPT for errors
-# TERM, HUP, INT handling
+# Error "Handling", no output unless verbose EXCEPT for errors (done)
+# TERM, HUP, INT handling (done)
 
-
-#### Test that we're in the right machine first ####
-#### REMOVE THIS OR REFINE LATER ####
-currentHost="$(hostname)"
-dev="$(ip route | grep default | awk '{print $5'})"
-ipAddr="$(ip -4 -o a show dev $dev | awk '{print $4}')"
-
-echo "You've hit the test server: $currentHost at $ipAddr"
+trap '' TERM HUP INT
 
 # Track if we are in verbose
 verbose=0
@@ -41,12 +31,13 @@ function myEcho () {
 }
 
 function myLog () {
-    logger -t $(basename "$0") -i -p user.warning
+    logger -t "$(basename "$0")" -i -p user.warning -- "$@"
 }
 
 function myError () { 
-    # Increment the error counter. Anything not 0 is an error. 
-    errors+=1
+    # Increment the error counter. Anything not 0 is an error.
+    echo "$(basename "$0"): $*" >&2
+    ((errors++))
 }
 
 # Change Hostname in both /etc/hosts and /etc/hostname
@@ -60,7 +51,6 @@ function changeHostname () {
 
     # If running hostname doesnt match, change it
     if [ "$currentName" != "$desiredName" ]; then
-        
         # Change the host name now
         if hostname "$desiredName"; then
             myEcho "Running hostname: changed '$currentName' -> '$desiredName'"
@@ -71,6 +61,7 @@ function changeHostname () {
     else
         myEcho "Running hostname: no changes requried for '$desiredName'"
     fi
+
     # Update /etc/hosts - if required. Will also replace -mgmt
     if grep -qw "$currentName" /etc/hosts && [ "$currentName" != "$desiredName" ]; then
         # update both "currentName" and "currentName-mgmt"
@@ -94,9 +85,89 @@ function changeHostname () {
         fi
     else
         myEcho "/etc/hostname: no changes requried for '$desiredName'"
+    fi
+}
 
+# Update the IP address. Takes argument of IP with no cidr
+# Usage: -ip <ip>
+# Updates the running, netplan and etc hosts file with the correct ips. 
+function updateIP () {
+    local desiredIP="$1"
+    local intLan="$(ip route show default | awk '{print $5}')"
+    local currentIP="$(ip -4 -o addr show dev "$intLan" | awk '{print $4}' | cut -d/ -f1)"
+
+    # Confirm Current IP to requested IP
+    if [ "$currentIP" = "$desiredIP" ]; then
+        myEcho "IP: no change to ip required. IP already $currentIP"
+        return 0
     fi
 
+    # Netplan
+    # No need to guard for currentIP desiredIP since the last guard already returns. 
+    # This is basically the else path. 
+    # checks for old ips and iff they exist you replace. 
+    for f in /etc/netplan/*.yaml; do
+        # Grep and check that its actually a new update
+        # & [ "$networkIPcidr" != "$newIPcidr" ];
+        if grep -q "$currentIP" "$f"; then
+            if sed -i -e "s,${currentIP},${desiredIP},g" "$f"; then
+                myEcho "IP: Replaced $currentIP with $desiredIP in $f"
+                myLog "IP: Updated $f: $currentIP -> $desiredIP"
+            else
+                myError "IP: failed to replace IP in $f"
+            fi
+        fi
+    done
+
+    # ETC hosts replacement, mirroring netplan structure
+    if grep -q "$currentIP" /etc/hosts; then
+        if sed -i -e "s,${currentIP},${desiredIP},g" /etc/hosts; then
+            myEcho "IP: Replaced $currentIP with $desiredIP in /etc/hosts"
+            myLog "IP: Updated /etc/hosts: $currentIP -> $desiredIP"
+        else
+            myError "IP: failed to replace IP in /etc/hosts"
+        fi
+    fi
+
+    # Apply the netplan. 
+    if netplan apply; then
+        myEcho "IP: Applied netplan: $desiredIP on $intLan"
+    else
+        myError "IP: Netplan Apply failed"
+    fi
+}
+
+function hostEntry () {
+    local newHost="$1"
+    local newIP="$2"
+
+    # First Case: Name present, IP correct
+
+    if grep -qwE "^${newIP}[[:space:]].*\b${newHost}\b" /etc/hosts; then
+        myEcho "HostEntry: no change, $newHost already set with $newIP"
+
+    # Second Case: Name present, IP Incorrect
+
+    elif grep -qw "$newHost" /etc/hosts; then
+        # Starts with any form of ip eg 11.111.11.11 will even match more, + ads one or more of those values (11.)
+        # () what parts to keep \b is word delim, capture group
+        # \1 references the capture group. 
+        if sed -i -E "s,^[0-9.]+([[:space:]].*\b${newHost}\b),${newIP}\1," /etc/hosts; then
+            myEcho "HostEntry: updated $newHost -> $newIP"
+            myLog "HostEntry: updated $newHost -> $newIP"
+        else
+            myError "HostEntry: Failed to updated /etc/hosts with $newHost $newIP"
+        fi
+
+    # Third Case: name missing, IP irrelevant
+    else
+        if echo "$newIP $newHost" >> /etc/hosts; then
+            myEcho "HostEntry: added $newIP $newHost to /etc/hosts"
+            myLog "HostEntry: /etc/hosts: added $newIP $newHost"
+        else
+            myError "HostEntry: /etc/hosts: failed to add $newIP $newHost"
+        fi
+    fi
 }
 
 # Handle command line args
@@ -104,14 +175,25 @@ while [ $# -gt 0 ]; do
     case "$1" in
         -v | -verbose | --verbose )
             verbose=1
-            myEcho "Verbose mode: on"
+            # myEcho "Verbose mode: on"
             ;;
         -n | -name )
             shift
-            changeHostname $1
+            changeHostname "$1"
+            ;;
+        -ip )
+            shift
+            updateIP "$1"
+            ;;
+        -hostentry )
+            shift
+            newName="$1"
+            shift
+            hostEntry "$newName" "$1"
+            ;;
     esac
     shift
 done
 
 # Return the amount of errors. 
-return $errors
+exit $errors
